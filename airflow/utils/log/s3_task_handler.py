@@ -165,6 +165,7 @@ class S3TaskHandler(FileTaskHandler, LoggingMixin):
                 key=remote_log_location,
                 replace=True,
                 encrypt=configuration.conf.getboolean('core', 'ENCRYPT_S3_LOGS'),
+                anonymous=configuration.conf.getboolean('core', 'S3_USE_ANONYMOUS')
             )
         except Exception:
             self.log.exception('Could not write logs to %s', remote_log_location)

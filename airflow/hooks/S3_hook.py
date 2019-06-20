@@ -32,8 +32,8 @@ class S3Hook(AwsHook):
     Interact with AWS S3, using the boto3 library.
     """
 
-    def get_conn(self):
-        return self.get_client_type('s3')
+    def get_conn(self,anonymous=False):
+        return self.get_client_type('s3', anonymous=anonymous)
 
     @staticmethod
     def parse_s3_url(s3url):
@@ -355,6 +355,7 @@ class S3Hook(AwsHook):
                     bucket_name=None,
                     replace=False,
                     encrypt=False,
+                    anonymous=False,
                     encoding='utf-8'):
         """
         Loads a string to S3
@@ -379,6 +380,7 @@ class S3Hook(AwsHook):
                         key=key,
                         bucket_name=bucket_name,
                         replace=replace,
+                        anonymous=anonymous,
                         encrypt=encrypt)
 
     def load_bytes(self,
@@ -386,6 +388,7 @@ class S3Hook(AwsHook):
                    key,
                    bucket_name=None,
                    replace=False,
+                   anonymous=False,
                    encrypt=False):
         """
         Loads bytes to S3
@@ -418,7 +421,7 @@ class S3Hook(AwsHook):
 
         filelike_buffer = BytesIO(bytes_data)
 
-        client = self.get_conn()
+        client = self.get_conn(anonymous)
         client.upload_fileobj(filelike_buffer, bucket_name, key, ExtraArgs=extra_args)
 
     def load_file_obj(self,

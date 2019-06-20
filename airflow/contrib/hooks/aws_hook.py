@@ -163,7 +163,15 @@ class AwsHook(BaseHook):
             aws_session_token=aws_session_token,
             region_name=region_name), endpoint_url
 
-    def get_client_type(self, client_type, region_name=None, config=None):
+    def get_client_type(self, client_type, region_name=None, config=None, anonymous=False):
+        if anonymous:
+            from botocore import UNSIGNED
+            from botocore.client import Config
+            if isinstance(config, Config):
+                config.signature_version = UNSIGNED
+            else:
+                config = Config(signature_version=UNSIGNED)
+
         session, endpoint_url = self._get_credentials(region_name)
 
         return session.client(client_type, endpoint_url=endpoint_url,
