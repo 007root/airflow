@@ -49,9 +49,7 @@ from airflow.models import Variable, TaskInstance
 
 
 from airflow import jobs, models, DAG, utils, macros, settings, exceptions
-from airflow.models import BaseOperator
-from airflow.models.connection import Connection
-from airflow.models.taskfail import TaskFail
+from airflow.models import BaseOperator, Connection, TaskFail
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.check_operator import CheckOperator, ValueCheckOperator
 from airflow.operators.dagrun_operator import TriggerDagRunOperator
@@ -75,7 +73,7 @@ from pendulum import utcnow
 
 import six
 
-NUM_EXAMPLE_DAGS = 18
+NUM_EXAMPLE_DAGS = 19
 DEV_NULL = '/dev/null'
 TEST_DAG_FOLDER = os.path.join(
     os.path.dirname(os.path.realpath(__file__)), 'dags')
@@ -1465,23 +1463,6 @@ class CliTests(unittest.TestCase):
         with self.assertRaises(AirflowException):
             cli.get_dags(self.parser.parse_args(['clear', 'foobar', '-dx', '-c']))
 
-    def test_backfill(self):
-        cli.backfill(self.parser.parse_args([
-            'backfill', 'example_bash_operator',
-            '-s', DEFAULT_DATE.isoformat()]))
-
-        cli.backfill(self.parser.parse_args([
-            'backfill', 'example_bash_operator', '-t', 'runme_0', '--dry_run',
-            '-s', DEFAULT_DATE.isoformat()]))
-
-        cli.backfill(self.parser.parse_args([
-            'backfill', 'example_bash_operator', '--dry_run',
-            '-s', DEFAULT_DATE.isoformat()]))
-
-        cli.backfill(self.parser.parse_args([
-            'backfill', 'example_bash_operator', '-l',
-            '-s', DEFAULT_DATE.isoformat()]))
-
     def test_process_subdir_path_with_placeholder(self):
         self.assertEqual(os.path.join(settings.DAGS_FOLDER, 'abc'), cli.process_subdir('DAGS_FOLDER/abc'))
 
@@ -1874,7 +1855,7 @@ class WebUiTests(unittest.TestCase):
 
         self.assertEqual('healthy', response_json['metadatabase']['status'])
         self.assertEqual('healthy', response_json['scheduler']['status'])
-        self.assertEqual(str(last_scheduler_heartbeat_for_testing_1),
+        self.assertEqual(last_scheduler_heartbeat_for_testing_1.isoformat(),
                          response_json['scheduler']['latest_scheduler_heartbeat'])
 
         session.query(BJ).\
@@ -1898,7 +1879,7 @@ class WebUiTests(unittest.TestCase):
 
         self.assertEqual('healthy', response_json['metadatabase']['status'])
         self.assertEqual('unhealthy', response_json['scheduler']['status'])
-        self.assertEqual(str(last_scheduler_heartbeat_for_testing_2),
+        self.assertEqual(last_scheduler_heartbeat_for_testing_2.isoformat(),
                          response_json['scheduler']['latest_scheduler_heartbeat'])
 
         session.query(BJ).\
@@ -1919,8 +1900,7 @@ class WebUiTests(unittest.TestCase):
 
         self.assertEqual('healthy', response_json['metadatabase']['status'])
         self.assertEqual('unhealthy', response_json['scheduler']['status'])
-        self.assertEqual('None',
-                         response_json['scheduler']['latest_scheduler_heartbeat'])
+        self.assertIsNone(response_json['scheduler']['latest_scheduler_heartbeat'])
 
         session.close()
 

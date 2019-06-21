@@ -21,7 +21,8 @@ from typing import Iterable
 
 from airflow.models import BaseOperator
 from airflow.utils.decorators import apply_defaults
-from airflow.contrib.hooks.qubole_hook import QuboleHook
+from airflow.contrib.hooks.qubole_hook import QuboleHook, COMMAND_ARGS, HYPHEN_ARGS, \
+    flatten_list, POSITIONAL_ARGS
 
 
 class QuboleOperator(BaseOperator):
@@ -45,6 +46,8 @@ class QuboleOperator(BaseOperator):
             :script_location: s3 location containing query statement
             :sample_size: size of sample in bytes on which to run query
             :macros: macro values which were used in query
+            :sample_size: size of sample in bytes on which to run query
+            :hive-version: Specifies the hive version to be used. eg: 0.13,1.2,etc.
         prestocmd:
             :query: inline query statement
             :script_location: s3 location containing query statement
@@ -69,22 +72,24 @@ class QuboleOperator(BaseOperator):
             :parameters: any extra args which need to be passed to script (only when
                 script_location is supplied
         sparkcmd:
-            :program: the complete Spark Program in Scala, SQL, Command, R, or Python
+            :program: the complete Spark Program in Scala, R, or Python
             :cmdline: spark-submit command line, all required information must be specify
                 in cmdline itself.
             :sql: inline sql query
             :script_location: s3 location containing query statement
-            :language: language of the program, Scala, SQL, Command, R, or Python
+            :language: language of the program, Scala, R, or Python
             :app_id: ID of an Spark job server app
             :arguments: spark-submit command line arguments
             :user_program_arguments: arguments that the user program takes in
             :macros: macro values which were used in query
+            :note_id: Id of the Notebook to run
         dbtapquerycmd:
             :db_tap_id: data store ID of the target database, in Qubole.
             :query: inline query statement
             :macros: macro values which were used in query
         dbexportcmd:
-            :mode: 1 (simple), 2 (advance)
+            :mode: Can be 1 for Hive export or 2 for HDFS/S3 export
+            :schema: Db schema name assumed accordingly by database if not specified
             :hive_table: Name of the hive table
             :partition_spec: partition specification for Hive table.
             :dbtap_id: data store ID of the target database, in Qubole.
@@ -93,9 +98,15 @@ class QuboleOperator(BaseOperator):
             :db_update_keys: columns used to determine the uniqueness of rows
             :export_dir: HDFS/S3 location from which data will be exported.
             :fields_terminated_by: hex of the char used as column separator in the dataset
+            :use_customer_cluster: To use cluster to run command
+            :customer_cluster_label: the label of the cluster to run the command on
+            :additional_options: Additional Sqoop options which are needed enclose options in
+                double or single quotes e.g. '--map-column-hive id=int,data=string'
         dbimportcmd:
             :mode: 1 (simple), 2 (advance)
             :hive_table: Name of the hive table
+            :schema: Db schema name assumed accordingly by database if not specified
+            :hive_serde: Output format of the Hive Table
             :dbtap_id: data store ID of the target database, in Qubole.
             :db_table: name of the db table
             :where_clause: where clause, if any
@@ -104,6 +115,10 @@ class QuboleOperator(BaseOperator):
                 of the where clause.
             :boundary_query: Query to be used get range of row IDs to be extracted
             :split_column: Column used as row ID to split data into ranges (mode 2)
+            :use_customer_cluster: To use cluster to run command
+            :customer_cluster_label: the label of the cluster to run the command on
+            :additional_options: Additional Sqoop options which are needed enclose options in
+                double or single quotes
 
     .. note:
 
@@ -133,13 +148,16 @@ class QuboleOperator(BaseOperator):
     template_ext = ('.txt',)  # type: Iterable[str]
     ui_color = '#3064A1'
     ui_fgcolor = '#fff'
+    qubole_hook_allowed_args_list = ['command_type', 'qubole_conn_id', 'fetch_logs']
 
     @apply_defaults
     def __init__(self, qubole_conn_id="qubole_default", *args, **kwargs):
         self.args = args
         self.kwargs = kwargs
         self.kwargs['qubole_conn_id'] = qubole_conn_id
-        super(QuboleOperator, self).__init__(*args, **kwargs)
+        self.hook = None
+        filtered_base_kwargs = self._get_filtered_args(kwargs)
+        super(QuboleOperator, self).__init__(*args, **filtered_base_kwargs)
 
         if self.on_failure_callback is None:
             self.on_failure_callback = QuboleHook.handle_failure_retry
@@ -147,11 +165,19 @@ class QuboleOperator(BaseOperator):
         if self.on_retry_callback is None:
             self.on_retry_callback = QuboleHook.handle_failure_retry
 
+    def _get_filtered_args(self, all_kwargs):
+        qubole_args = flatten_list(COMMAND_ARGS.values()) + HYPHEN_ARGS + \
+            flatten_list(POSITIONAL_ARGS.values()) + self.qubole_hook_allowed_args_list
+        return {key: value for key, value in all_kwargs.items() if key not in qubole_args}
+
     def execute(self, context):
         return self.get_hook().execute(context)
 
     def on_kill(self, ti=None):
-        self.get_hook().kill(ti)
+        if self.hook:
+            self.hook.kill(ti)
+        else:
+            self.get_hook().kill(ti)
 
     def get_results(self, ti=None, fp=None, inline=True, delim=None, fetch=True):
         return self.get_hook().get_results(ti, fp, inline, delim, fetch)

@@ -26,8 +26,8 @@
 
 {% block content %}
 {{ super() }}
-{% if dag.doc_md %}
-<div class="rich_doc" style="margin-bottom: 15px;">{{ dag.doc_md|safe }}</div>
+{% if doc_md %}
+<div class="rich_doc" style="margin-bottom: 15px;">{{ doc_md|safe }}</div>
 {% endif %}
 <div class="form-inline">
   <form method="get" style="float:left;">
@@ -167,10 +167,15 @@
 
     d3.selectAll("g.node").on("click", function(d){
         task = tasks[d];
-        if (task.task_type == "SubDagOperator")
-            call_modal(d, execution_date, task_instances[d].try_number, true);
+        if (d in task_instances)
+            try_number = task_instances[d].try_number;
         else
-            call_modal(d, execution_date,task_instances[d].try_number);
+            try_number = 0;
+
+        if (task.task_type == "SubDagOperator")
+            call_modal(d, execution_date, try_number, true);
+        else
+            call_modal(d, execution_date, try_number);
     });
 
 

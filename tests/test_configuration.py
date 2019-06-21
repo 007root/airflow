@@ -140,6 +140,14 @@ class ConfTest(unittest.TestCase):
         self.assertEqual(cfg_dict['testsection']['testpercent'], 'with%%percent')
         self.assertEqual(cfg_dict['core']['percent'], 'with%%inside')
 
+    def test_conf_as_dict_exclude_env(self):
+        # test display_sensitive
+        cfg_dict = conf.as_dict(include_env=False, display_sensitive=True)
+
+        # Since testsection is only created from env vars, it shouldn't be
+        # present at all if we don't ask for env vars to be included.
+        self.assertNotIn('testsection', cfg_dict)
+
     def test_command_precedence(self):
         TEST_CONFIG = '''[test]
 key1 = hello
@@ -185,6 +193,73 @@ key6 = value6
         cfg_dict = test_conf.as_dict(display_sensitive=True)
         self.assertEqual('cmd_result', cfg_dict['test']['key2'])
         self.assertNotIn('key2_cmd', cfg_dict['test'])
+
+        # If we exclude _cmds then we should still see the commands to run, not
+        # their values
+        cfg_dict = test_conf.as_dict(include_cmds=False, display_sensitive=True)
+        self.assertNotIn('key4', cfg_dict['test'])
+        self.assertEqual('printf key4_result', cfg_dict['test']['key4_cmd'])
+
+    def test_getboolean(self):
+        """Test AirflowConfigParser.getboolean"""
+        TEST_CONFIG = """
+[type_validation]
+key1 = non_bool_value
+
+[true]
+key2 = t
+key3 = true
+key4 = 1
+
+[false]
+key5 = f
+key6 = false
+key7 = 0
+
+[inline-comment]
+key8 = true #123
+"""
+        test_conf = AirflowConfigParser(default_config=TEST_CONFIG)
+        with self.assertRaises(ValueError):
+            test_conf.getboolean('type_validation', 'key1')
+        self.assertTrue(isinstance(test_conf.getboolean('true', 'key3'), bool))
+        self.assertEqual(True, test_conf.getboolean('true', 'key2'))
+        self.assertEqual(True, test_conf.getboolean('true', 'key3'))
+        self.assertEqual(True, test_conf.getboolean('true', 'key4'))
+        self.assertEqual(False, test_conf.getboolean('false', 'key5'))
+        self.assertEqual(False, test_conf.getboolean('false', 'key6'))
+        self.assertEqual(False, test_conf.getboolean('false', 'key7'))
+        self.assertEqual(True, test_conf.getboolean('inline-comment', 'key8'))
+
+    def test_getint(self):
+        """Test AirflowConfigParser.getint"""
+        TEST_CONFIG = """
+[invalid]
+key1 = str
+
+[valid]
+key2 = 1
+"""
+        test_conf = AirflowConfigParser(default_config=TEST_CONFIG)
+        with self.assertRaises(ValueError):
+            test_conf.getint('invalid', 'key1')
+        self.assertTrue(isinstance(test_conf.getint('valid', 'key2'), int))
+        self.assertEqual(1, test_conf.getint('valid', 'key2'))
+
+    def test_getfloat(self):
+        """Test AirflowConfigParser.getfloat"""
+        TEST_CONFIG = """
+[invalid]
+key1 = str
+
+[valid]
+key2 = 1.23
+"""
+        test_conf = AirflowConfigParser(default_config=TEST_CONFIG)
+        with self.assertRaises(ValueError):
+            test_conf.getfloat('invalid', 'key1')
+        self.assertTrue(isinstance(test_conf.getfloat('valid', 'key2'), float))
+        self.assertEqual(1.23, test_conf.getfloat('valid', 'key2'))
 
     def test_remove_option(self):
         TEST_CONFIG = '''[test]

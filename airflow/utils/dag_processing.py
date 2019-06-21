@@ -36,9 +36,10 @@ from collections import namedtuple
 from datetime import timedelta
 from importlib import import_module
 import enum
+from queue import Empty
 
 import psutil
-from six.moves import range, reload_module
+from six.moves import reload_module
 from sqlalchemy import or_
 from tabulate import tabulate
 
@@ -277,6 +278,23 @@ class SimpleDagBag(BaseDagBag):
         return self.dag_id_to_simple_dag[dag_id]
 
 
+def correct_maybe_zipped(fileloc):
+    """
+    If the path contains a folder with a .zip suffix, then
+    the folder is treated as a zip archive and path to zip is returned.
+    """
+
+    _, archive, filename = re.search(
+        r'((.*\.zip){})?(.*)'.format(re.escape(os.sep)), fileloc).groups()
+    if archive and zipfile.is_zipfile(archive):
+        return archive
+    else:
+        return fileloc
+
+
+COMMENT_PATTERN = re.compile(r"\s*#.*")
+
+
 def list_py_file_paths(directory, safe_mode=True,
                        include_examples=None):
     """
@@ -305,7 +323,8 @@ def list_py_file_paths(directory, safe_mode=True,
                 with open(ignore_file, 'r') as f:
                     # If we have new patterns create a copy so we don't change
                     # the previous list (which would affect other subdirs)
-                    patterns = patterns + [p for p in f.read().split('\n') if p]
+                    lines_no_comments = [COMMENT_PATTERN.sub("", line) for line in f.read().split("\n")]
+                    patterns += [re.compile(line) for line in lines_no_comments if line]
 
             # If we can ignore any subdirs entirely we should - fewer paths
             # to walk is better. We have to modify the ``dirs`` array in
@@ -313,7 +332,7 @@ def list_py_file_paths(directory, safe_mode=True,
             dirs[:] = [
                 d
                 for d in dirs
-                if not any(re.search(p, os.path.join(root, d)) for p in patterns)
+                if not any(p.search(os.path.join(root, d)) for p in patterns)
             ]
 
             # We want patterns defined in a parent folder's .airflowignore to
@@ -337,8 +356,8 @@ def list_py_file_paths(directory, safe_mode=True,
                     # Airflow DAG definition.
                     might_contain_dag = True
                     if safe_mode and not zipfile.is_zipfile(file_path):
-                        with open(file_path, 'rb') as f:
-                            content = f.read()
+                        with open(file_path, 'rb') as fp:
+                            content = fp.read()
                             might_contain_dag = all(
                                 [s in content for s in (b'DAG', b'airflow')])
 
@@ -492,8 +511,9 @@ class DagFileProcessorAgent(LoggingMixin):
         # Pipe for communicating signals
         self._parent_signal_conn, self._child_signal_conn = multiprocessing.Pipe()
         # Pipe for communicating DagParsingStat
-        self._stat_queue = multiprocessing.Queue()
-        self._result_queue = multiprocessing.Queue()
+        self._manager = multiprocessing.Manager()
+        self._stat_queue = self._manager.Queue()
+        self._result_queue = self._manager.Queue()
         self._process = None
         self._done = False
         # Initialized as true so we do not deactivate w/o any actual DAG parsing.
@@ -580,13 +600,15 @@ class DagFileProcessorAgent(LoggingMixin):
         # if it processed all files for max_run times and exit normally.
         self._heartbeat_manager()
         simple_dags = []
-        # multiprocessing.Queue().qsize will not work on MacOS.
-        if sys.platform == "darwin":
-            qsize = self._result_count
-        else:
-            qsize = self._result_queue.qsize()
-        for _ in range(qsize):
-            simple_dags.append(self._result_queue.get())
+        while True:
+            try:
+                result = self._result_queue.get_nowait()
+                try:
+                    simple_dags.append(result)
+                finally:
+                    self._result_queue.task_done()
+            except Empty:
+                break
 
         self._result_count = 0
 
@@ -668,6 +690,7 @@ class DagFileProcessorAgent(LoggingMixin):
             self.log.info("Killing manager process: %s", manager_process.pid)
             manager_process.kill()
             manager_process.wait()
+        self._manager.shutdown()
 
 
 class DagFileProcessorManager(LoggingMixin):
@@ -1248,7 +1271,10 @@ class DagFileProcessorManager(LoggingMixin):
             )
             self._last_zombie_query_time = timezone.utcnow()
             for ti in tis:
-                zombies.append(SimpleTaskInstance(ti))
+                sti = SimpleTaskInstance(ti)
+                self.log.info("Detected zombie job with dag_id %s, task_id %s, and execution date %s",
+                              sti.dag_id, sti.task_id, sti.execution_date.isoformat())
+                zombies.append(sti)
 
         return zombies
 

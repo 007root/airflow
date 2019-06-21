@@ -23,6 +23,8 @@ python:
 env:
   global:
     - TRAVIS_CACHE=$HOME/.travis_cache/
+    - CASS_DRIVER_BUILD_CONCURRENCY=8
+    - CASS_DRIVER_NO_CYTHON=1
   matrix:
     - TOX_ENV=py27-backend_mysql-env_docker
     - TOX_ENV=py27-backend_sqlite-env_docker
@@ -67,7 +69,7 @@ before_install:
   - if [ ! -z "$KUBERNETES_VERSION" ]; then sudo mount --make-shared / && sudo service docker restart; fi
 install:
   - pip install --upgrade pip
-  - docker-compose -f scripts/ci/docker-compose.yml pull --quiet --parallel
+  - docker-compose -f scripts/ci/docker-compose.yml pull --quiet
 script:
   - if [ -z "$KUBERNETES_VERSION" ]; then
       docker-compose --log-level ERROR -f scripts/ci/docker-compose.yml run airflow-testing /app/scripts/ci/run-ci.sh;
