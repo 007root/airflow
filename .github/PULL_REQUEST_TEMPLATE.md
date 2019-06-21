@@ -33,5 +33,8 @@ Make sure you have checked _all_ steps below.
   - If you implement backwards incompatible changes, please leave a note in the [Updating.md](https://github.com/apache/airflow/blob/master/UPDATING.md) so we can assign it to a appropriate release
 
 ### Code Quality
+<<<<<<< HEAD
 
+=======
+>>>>>>> v1-10-stable
 - [ ] Passes `flake8`

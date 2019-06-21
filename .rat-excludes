@@ -28,16 +28,22 @@ metastore_db
 CHANGELOG.txt
 .*zip
 .*lock
+<<<<<<< HEAD
 unittests.cfg
 logs
 
+=======
+>>>>>>> v1-10-stable
 # Generated doc files
 .*html
 _build/*
 _static/*
 .buildinfo
 searchindex.js
+<<<<<<< HEAD
 _api/*
+=======
+>>>>>>> v1-10-stable
 
 # Apache Rat does not detect BSD-2 clause properly
 # it is compatible according to http://www.apache.org/legal/resolved.html#category-a
@@ -59,7 +65,10 @@ coverage/*
 git_version
 flake8_diff.sh
 coverage.xml
+<<<<<<< HEAD
 _sources/*
+=======
+>>>>>>> v1-10-stable
 
 rat-results.txt
 apache-airflow-.*\+source.tar.gz.*
@@ -67,6 +76,9 @@ apache-airflow-.*\+bin.tar.gz.*
 
 # vendored modules
 _vendor/*
+<<<<<<< HEAD
 
 # Temporary list of files to make compatible with Pylint
 pylint_todo.txt
+=======
+>>>>>>> v1-10-stable

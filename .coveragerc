@@ -22,5 +22,9 @@ omit =
     scripts/*
     dev/*
     airflow/migrations/*
+<<<<<<< HEAD
     airflow/www/node_modules/**
     airflow/_vendor/*
+=======
+    airflow/www_rbac/node_modules/**
+>>>>>>> v1-10-stable
