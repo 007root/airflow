@@ -83,9 +83,10 @@ class AwsHook(BaseHook):
     This class is a thin wrapper around the boto3 python library.
     """
 
-    def __init__(self, aws_conn_id='aws_default', verify=None):
+    def __init__(self, aws_conn_id='aws_default', verify=None, anonymous=False):
         self.aws_conn_id = aws_conn_id
         self.verify = verify
+        self.anonymous = anonymous
 
     def _get_credentials(self, region_name):
         aws_access_key_id = None
@@ -163,8 +164,8 @@ class AwsHook(BaseHook):
             aws_session_token=aws_session_token,
             region_name=region_name), endpoint_url
 
-    def get_client_type(self, client_type, region_name=None, config=None, anonymous=False):
-        if anonymous:
+    def get_client_type(self, client_type, region_name=None, config=None):
+        if self.anonymous:
             from botocore import UNSIGNED
             from botocore.client import Config
             if isinstance(config, Config):
@@ -178,6 +179,14 @@ class AwsHook(BaseHook):
                               config=config, verify=self.verify)
 
     def get_resource_type(self, resource_type, region_name=None, config=None):
+        if self.anonymous:
+            from botocore import UNSIGNED
+            from botocore.client import Config
+            if isinstance(config, Config):
+                config.signature_version = UNSIGNED
+            else:
+                config = Config(signature_version=UNSIGNED)
+
         session, endpoint_url = self._get_credentials(region_name)
 
         return session.resource(resource_type, endpoint_url=endpoint_url,

@@ -38,13 +38,14 @@ class S3TaskHandler(FileTaskHandler, LoggingMixin):
         self._hook = None
         self.closed = False
         self.upload_on_close = True
+        self.anonymous  = configuration.conf.getboolean('core', 'S3_USE_ANONYMOUS')
 
     @cached_property
     def hook(self):
         remote_conn_id = configuration.conf.get('core', 'REMOTE_LOG_CONN_ID')
         try:
             from airflow.hooks.S3_hook import S3Hook
-            return S3Hook(remote_conn_id)
+            return S3Hook(remote_conn_id, anonymous=self.anonymous)
         except Exception:
             self.log.error(
                 'Could not create an S3Hook with connection id "%s". '
@@ -164,8 +165,7 @@ class S3TaskHandler(FileTaskHandler, LoggingMixin):
                 log,
                 key=remote_log_location,
                 replace=True,
-                encrypt=configuration.conf.getboolean('core', 'ENCRYPT_S3_LOGS'),
-                anonymous=configuration.conf.getboolean('core', 'S3_USE_ANONYMOUS')
+                encrypt=configuration.conf.getboolean('core', 'ENCRYPT_S3_LOGS')
             )
         except Exception:
             self.log.exception('Could not write logs to %s', remote_log_location)
